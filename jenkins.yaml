@@ -1,31 +1,49 @@
-pipeline:
-  agent: any
-  environment:
-    - name: DOCKER_HUB_USER
-      value: "your_dockerhub_username_here"
-    - name: IMAGE_NAME
-      value: "my-portfolio-web"
-  stages:
-    - stage: Clone Code
-      steps:
-        - checkout: scm
+pipeline {
+    agent any
 
-    - stage: Build Docker Image
-      steps:
-        - sh: "docker build -t $DOCKER_HUB_USER/$IMAGE_NAME:latest ."
+    environment {
+        // Change 'your-dockerhub-username' to your actual Docker Hub username
+        DOCKER_HUB_USER = 'your-dockerhub-username'
+        IMAGE_NAME      = 'my-portfolio'
+        PORT            = '8081'
+    }
 
-    - stage: Push to Docker Hub
-      steps:
-        - withCredentials:
-            credentialsId: "dockerhub-credentials"
-            usernameVariable: "DOCKER_USER"
-            passwordVariable: "DOCKER_PASS"
-            steps:
-              - sh: "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-              - sh: "docker push $DOCKER_HUB_USER/$IMAGE_NAME:latest"
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Priyaa1505/my-portfolio-pipeline.git'
+            }
+        }
 
-    - stage: Production Deployment
-      steps:
-        - sh: "docker stop $IMAGE_NAME || true"
-        - sh: "docker rm $IMAGE_NAME || true"
-        - sh: "docker run -d -p 8081:8081 --name $IMAGE_NAME $DOCKER_HUB_USER/$IMAGE_NAME:latest"
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest ."
+                }
+            }
+        }
+
+        stage('Deploy Application') {
+            steps {
+                script {
+                    // Stop and remove any old running portfolio container if it exists
+                    sh "docker stop ${IMAGE_NAME} || true"
+                    sh "docker rm ${IMAGE_NAME} || true"
+                    
+                    // Run the new container on port 8081
+                    sh "docker run -d -p ${PORT}:${PORT} --name ${IMAGE_NAME} ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment successful! Portfolio is live on port ${PORT}."
+        }
+        failure {
+            echo "Pipeline failed. Check the console logs above."
+        }
+    }
+}
+           
